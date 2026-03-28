@@ -1,0 +1,645 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage[a4paper, total={6.5in, 9.5in}]{geometry}
+\usepackage{amsmath}
+\usepackage{setspace}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{bbm}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\usetikzlibrary{matrix}
+\usetikzlibrary{positioning}
+\usepackage{changepage}
+\usepackage{xcolor}
+\usepackage{adjustbox}
+\usepackage{longtable}
+
+\title{DSGE Documentation}
+\author{Lorenzo Menna\footnote{ Banco de M\'exico, lorenzo.menna@banxico.org.mx}}
+\date{March 2026}
+
+\begin{document}
+
+\maketitle
+\[\]
+\[\]
+
+\begin{center}
+    \section*{Introduction}\vspace{2em}
+\begin{adjustwidth}{1.5cm}{1.5cm}
+This PDF file contains the documentation for DSGE first-order solution MatLab functions. 
+\end{adjustwidth}
+\end{center}
+
+\break
+\tableofcontents
+
+\break
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{chomoreno --- Solve DSGE model via the forward method}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Syntax}
+
+\begin{verbatim}
+Q = chomoreno(EQ, var, shocks, std_shocks)
+
+Q = chomoreno(EQ, var, shocks, std_shocks, ss, linear, lenght_irf, plotirf)
+\end{verbatim}
+
+\subsection{Description}
+
+\textbf{chomoreno} solves a DSGE model to first order using the forward method of Cho and Moreno (2011). The function iterates the structural system forward to convergence, selecting the unique solution that satisfies the no-bubble condition (NBC). It handles both linear and nonlinear models (the latter are automatically linearized around a user-supplied steady state via Taylor expansion).
+
+The solution takes the form:
+\[
+Y_t = V_1 \, Y_{t-1} + V_2 \, \varepsilon_t
+\]
+where $Y_t$ is the $N \times 1$ vector of endogenous variables, $\varepsilon_t$ is the $M \times 1$ vector of structural shocks, $V_1$ is the $N \times N$ autoregressive matrix, and $V_2$ is the $N \times M$ shock-impact matrix.
+
+\subsection{Options}
+
+\begin{longtable}[c]{p{2.8cm}p{11.2cm}}
+\toprule
+\textbf{Option} & \textbf{Description} \\
+\midrule
+\texttt{EQ} & $N \times 1$ vector of symbolic equations, each set equal to zero. Variables must be symbolic. Forward-looking variables are denoted with suffix \texttt{\_f} (e.g., \texttt{y\_f} for $E_t[y_{t+1}]$) and lagged variables with suffix \texttt{\_l} (e.g., \texttt{y\_l} for $y_{t-1}$). Shocks must also appear as symbolic variables. Parameters must already have numerical values assigned and should not appear as symbolic. Required. \\[0.3em]
+\texttt{var} & $1 \times N$ symbolic vector containing the $N$ endogenous variables. Required. \\[0.3em]
+\texttt{shocks} & $1 \times M$ symbolic vector containing the $M$ structural shocks. Required. \\[0.3em]
+\texttt{std\_shocks} & $1 \times M$ vector containing the size of the impulse for each shock in the IRFs (e.g., one standard deviation). Required. \\[0.3em]
+\texttt{ss} & $1 \times N$ vector of steady-state values, ordered as in \texttt{var}. Required when \texttt{linear=0}. Can be left empty (\texttt{[]}) when \texttt{linear=1}. \\[0.3em]
+\texttt{linear} & Set to \texttt{1} if the model is already in linear (or log-linear) form; set to \texttt{0} if the model is in levels and needs linearization. Default is \texttt{0}. \\[0.3em]
+\texttt{lenght\_irf} & Length of impulse response functions. Default is 40. \\[0.3em]
+\texttt{plotirf} & Set to \texttt{1} to plot IRFs automatically; set to \texttt{0} to suppress plots. Default is \texttt{1}. \\[0.3em]
+\bottomrule
+\end{longtable}
+
+\subsection{Stored results}
+
+\textbf{chomoreno} stores the following in structure \texttt{Q}:
+
+\medskip
+\noindent\textbf{Matrices}
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{4.5cm}p{10cm}@{}}
+\texttt{Q.V1} & $N \times N$ autoregressive matrix of the policy function $Y_t = V_1 Y_{t-1} + V_2 \varepsilon_t$. \\[0.2em]
+\texttt{Q.V2} & $N \times M$ shock-impact matrix of the policy function. \\[0.2em]
+\texttt{Q.var} & $N \times N$ theoretical variance-covariance matrix of the endogenous variables. \\[0.2em]
+\texttt{Q.corr} & $N \times N$ theoretical correlation matrix of the endogenous variables. \\[0.2em]
+\texttt{Q.irf} & Structure with one field per shock (named after each shock symbol). Each field is an $N \times (\texttt{lenght\_irf}+1)$ matrix; column 1 is the initial state (zeros), columns 2 through $\texttt{lenght\_irf}+1$ are periods 1 through \texttt{lenght\_irf}. \\[0.2em]
+\texttt{Q.prova1} & $N \times N$ residual matrix $A V_1^2 + B V_1 + C$. All entries should be close to zero. \\[0.2em]
+\texttt{Q.prova2} & $N \times M$ residual matrix $A V_1 V_2 + B V_2 + D$. All entries should be close to zero. \\[0.2em]
+\texttt{Q.ss} & $1 \times N$ steady-state values (only present if \texttt{ss} was provided). \\[0.2em]
+\texttt{Q.dev\_ss} & $N \times 1$ equation residuals at the zero point (should be close to zero). \\[0.2em]
+\end{tabular}
+
+\subsection{Remarks}
+
+\noindent\textbf{Model specification.} The function expects or linearize the model to the general form:
+\[
+A \, E_t[Y_{t+1}] + B \, Y_t + C \, Y_{t-1} + D \, \varepsilon_t = 0
+\]
+The matrices $A$, $B$, $C$, $D$ are extracted automatically from the symbolic equations via the Jacobian. The user does not need to specify them explicitly.
+
+\medskip
+\noindent\textbf{Forward iteration.} The function rewrites the system as $Y_t = \tilde{A} \, E_t[Y_{t+1}] + \tilde{B} \, Y_{t-1} + \tilde{C} \, \varepsilon_t$ and iterates $V_{n+1} = (I - \tilde{A} V_n)^{-1} \tilde{B}$ until convergence. This selects the unique no-bubble solution when the Forward Convergence Condition (FCC) is satisfied.
+
+\medskip
+\noindent\textbf{Determinacy classification.} After convergence, the function checks:
+\begin{itemize}[nosep]
+\item Spectral radius of $V_1$: $r(V_1)$
+\item Spectral radius of $F = (I - \tilde{A} V_1)^{-1} \tilde{A}$: $r(F)$
+\end{itemize}
+Classification follows Cho and McCallum (2015):
+\begin{itemize}[nosep]
+\item $r(V_1) < 1$ and $r(F) \leq 1 + 10^{-6}$: \textbf{Determinacy}
+\item $r(V_1) < 1$ and $r(F) > 1 + 10^{-6}$: \textbf{Indeterminacy}
+\item $r(V_1) > 1$: \textbf{Instability}
+\end{itemize}
+Under indeterminacy, the forward solution still exists and is the unique one satisfying the no-bubble condition (NBC). However, other stable fundamental solutions may also exist (see Cho and McCallum, 2015, Section 6).
+
+\medskip
+\noindent\textbf{Forward Convergence Condition (FCC).} The forward iteration is guaranteed to converge for purely forward-looking models. For models with lagged variables (i.e., $C \neq 0$), convergence is not guaranteed. If the iteration does not converge within 100,000 steps, the function prints \texttt{'Model does not satisfy the FCC'} and returns without a solution. See Cho and McCallum (2015, Proposition~4) for details.
+
+\medskip
+\noindent\textbf{Nonlinear models.} When \texttt{linear=0}, the function: (1) verifies that the steady state satisfies $\text{EQ}(\bar{Y}, \bar{Y}, \bar{Y}, 0) = 0$; (2) redefines variables as deviations from steady state; (3) performs a first-order Taylor expansion around the steady state. The resulting IRFs are in absolute deviations from the steady state; to convert to percentage deviations, divide by the steady-state values.
+
+\subsection{Examples}
+
+\noindent\textbf{Example 1: Basic 3-equation New Keynesian model (linear, determinacy)}
+
+\medskip
+\noindent Solve a standard NK model with IS curve, Phillips curve, Taylor rule, and natural rate process:
+\begin{verbatim}
+% Define symbolic variables
+vars = {'y' 'p' 'ii' 'rn'};
+var = zeros(0,0);
+for jj = 1:size(vars,2)
+    eval(['syms ' vars{jj}]);
+    eval(['var = [var ' vars{jj} '];']);
+    eval(['syms ' vars{jj} '_l']);
+    eval(['syms ' vars{jj} '_f']);
+end
+syms eps_r eps_y;
+
+% Parameters
+bet = 0.99; sig = 1; kap = 0.1;
+phi_pi = 1.5; phi_y = 0.5; rho_rn = 0.8;
+
+% Equations (set equal to zero)
+EQ = [y - y_f + sig*(ii - p_f - rn);    % IS curve
+      p - bet*p_f - kap*y;               % Phillips curve
+      ii - phi_pi*p - phi_y*y - eps_r;   % Taylor rule
+      rn - rho_rn*rn_l - eps_y];         % Natural rate
+
+Q = chomoreno(EQ, var, [eps_r eps_y], [0.0025 0.005], [], 1);
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 2: Nonlinear model with automatic linearization}
+
+\medskip
+\noindent Solve a nonlinear Rotemberg NK model in levels. The function automatically linearizes around the supplied steady state:
+\begin{verbatim}
+% Nonlinear equations
+EQ_nl = [y^(-sig) - bet*y_f^(-sig)*(ii/p_f);
+         -y^(eta-sig) + 1 + K/(mu-1)*(p-1)*p ...
+           - bet*K/(mu-1)*(y_f/y)^(-sig)*(p_f-1)*p_f*y_f/y;
+         -ii + ii_ss*p^phi_pi*y^phi_y*exp(eps_r)];
+
+ss_nl = [1, 1, 1/bet];  % y_ss, p_ss, ii_ss
+Q2 = chomoreno(EQ_nl, var_nl, [eps_r], [0.0025], ss_nl, 0, 40, 1);
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 3: Custom IRF length and no plotting}
+
+\medskip
+\noindent Solve with 60-period IRFs and suppress automatic plotting:
+\begin{verbatim}
+Q3 = chomoreno(EQ, var, shocks, std_shocks, [], 1, 60, 0);
+
+% Manually plot selected IRFs
+figure;
+plot(1:60, Q3.irf.eps_r(1, 2:end), 'LineWidth', 2);
+title('Output response to monetary shock');
+xlabel('Periods'); ylabel('Deviation from SS'); grid on;
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 4: Indeterminacy (passive monetary policy)}
+
+\medskip
+\noindent When the Taylor principle is violated ($\phi_\pi < 1$), the model is indeterminate. The forward method still returns the unique no-bubble solution:
+\begin{verbatim}
+phi_pi_passive = 0.8;
+EQ_indet = [y - y_f + sig*(ii - p_f - rn);
+            p - bet*p_f - kap*y;
+            ii - phi_pi_passive*p - phi_y*y - eps_r;
+            rn - rho_rn*rn_l - eps_y];
+
+Q4 = chomoreno(EQ_indet, var, shocks, std_shocks, [], 1, 40, 0);
+% Displays: 'Indeterminacy'
+% Q4.V1 and Q4.V2 contain the forward (NBC) solution
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 6: Unit root in a simple small open economy}
+
+\medskip
+\noindent A simplified Schmitt-Groh\'e and Uribe (2003) small open economy model where the Euler equation creates a unit root in consumption. The forward method classifies this as determinate:
+\begin{verbatim}
+bet_ex6 = 0.99; rho_ex6 = 0.8;
+syms c6 c6_f c6_l R6 R6_f R6_l eps6;
+EQ_ex6 = [c6_f - c6 - R6;
+          R6 - rho_ex6*R6_l - eps6];
+
+Q6 = chomoreno(EQ_ex6, [c6 R6], [eps6], [0.01], [], 1, 40, 0);
+% Displays: 'Determinacy'
+% V1 eigenvalues: 0 and 0.8 (no unit root in V1)
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 7: Block-recursive structure}
+
+\medskip
+\noindent Adding the budget constraint $c + b - (1/\beta) b_{t-1} = 0$ to the model of Example~6 introduces a non-interacting variable $b$ with explosive eigenvalue $1/\beta > 1$. The forward method is invariant: the IRFs for $c$ and $R$ are identical to Example~6, but the classification changes to Instability because $1/\beta$ appears in $V_1$.
+\begin{verbatim}
+syms b6 b6_f b6_l;
+EQ_ex7 = [c6_f - c6 - R6;
+          R6 - rho_ex6*R6_l - eps6;
+          c6 + b6 - 1/bet_ex6*b6_l];
+
+Q7 = chomoreno(EQ_ex7, [c6 R6 b6], [eps6], [0.01], [], 1, 40, 0);
+% Displays: 'Instability'
+% But Q7.V1(1:2,1:2) == Q6.V1 and Q7.V2(1:2,:) == Q6.V2
+\end{verbatim}
+
+\medskip
+\noindent For complete, executable examples with all figures and comparisons, see \texttt{examples\_chomoreno.m} in the package repository.
+
+\subsection{Methods and formulas}
+
+The structural linear rational expectations model is written as:
+\[
+A \, E_t[Y_{t+1}] + B \, Y_t + C \, Y_{t-1} + D \, \varepsilon_t = 0
+\]
+where $A$, $B$, $C$ are $N \times N$ coefficient matrices and $D$ is $N \times M$. These are extracted from the symbolic equations via the Jacobian with respect to the forwarded, current, lagged, and shock variables, respectively.
+
+\medskip
+\noindent\textbf{Forward iteration.} Premultiplying by $-B^{-1}$, the system becomes:
+\[
+Y_t = \tilde{A} \, E_t[Y_{t+1}] + \tilde{B} \, Y_{t-1} + \tilde{C} \, \varepsilon_t
+\]
+where $\tilde{A} = -B^{-1}A$, $\tilde{B} = -B^{-1}C$, $\tilde{C} = -B^{-1}D$. The autoregressive matrix $V_1$ is obtained by iterating:
+\[
+V_{n+1} = (I - \tilde{A} \, V_n)^{-1} \tilde{B}, \qquad V_0 = \tilde{B}
+\]
+until $\max|V_{n+1} - V_n| < 10^{-8}$. Under the Forward Convergence Condition (FCC), this sequence converges to the unique solution of the matrix quadratic equation $A V_1^2 + B V_1 + C = 0$ that satisfies the no-bubble condition.
+
+\medskip
+\noindent\textbf{Shock-impact matrix.} Once $V_1$ is obtained, $V_2$ solves:
+\[
+A \, V_1 \, V_2 + B \, V_2 + D = 0 \qquad \Rightarrow \qquad V_2 = (I - \tilde{A} \, V_1)^{-1} \tilde{C}
+\]
+
+\medskip
+\noindent\textbf{Impulse response functions.} The IRF to shock $j$ at horizon $h$ is:
+\[
+\text{IRF}_j(h) = V_1^h \, V_2 \, e_j \, \sigma_j
+\]
+where $e_j$ is the $j$-th unit vector and $\sigma_j$ is the specified shock size.
+
+\medskip
+\noindent\textbf{Variance-covariance matrix.} The unconditional variance is computed via the discrete Lyapunov equation using vectorization:
+\[
+\text{vec}(\Sigma_Y) = (I_{N^2} - V_1 \otimes V_1)^{-1} \, \text{vec}(V_2 \, \Sigma_\varepsilon \, V_2')
+\]
+where $\Sigma_\varepsilon = \text{diag}(\sigma_1^2, \ldots, \sigma_M^2)$.
+
+\subsection{References}
+
+Cho, S. and Moreno, A. 2011. ``The forward method as a solution refinement in rational expectations models.'' \textit{Journal of Economic Dynamics and Control}, 35(3), 257--272.
+
+\medskip
+\noindent Cho, S. and McCallum, B.T. 2015. ``Refining linear rational expectations models and equilibria.'' \textit{Journal of Macroeconomics}, 46, 160--169.
+
+\medskip
+\noindent Schmitt-Groh\'e, S. and Uribe, M. 2003. ``Closing small open economy models.'' \textit{Journal of International Economics}, 61(1), 163--185.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{lubikschorfheide --- Solve DSGE model via QZ eigenvalue decomposition}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Syntax}
+
+\begin{verbatim}
+Q = lubikschorfheide(EQ, var, shocks, std_shocks)
+
+Q = lubikschorfheide(EQ, var, shocks, std_shocks, ss, linear,
+                     lenght_irf, plotirf, instsol)
+\end{verbatim}
+
+\subsection{Description}
+
+\textbf{lubikschorfheide} solves a DSGE model to first order using the QZ (generalized Schur) decomposition method of Lubik and Schorfheide (2003, 2004). Unlike the forward method (\texttt{chomoreno}), which selects a unique solution via the no-bubble condition, this function characterizes the \textit{full set} of stable solutions. Under determinacy, the two methods agree. Under indeterminacy, Lubik-Schorfheide provides a parametric family of solutions indexed by a free matrix $M_1$ and allows for sunspot (belief) shocks.
+
+The function augments the original $N$-variable system with $N$ conditional-expectation variables $\Lambda_t = E_{t-1}[Y_t]$ and forecast errors $\eta_t = Y_t - E_{t-1}[Y_t]$, recasting the model into the Sims (2002) canonical form. It then applies the QZ decomposition to classify eigenvalues as stable or unstable and construct the solution.
+
+\subsection{Options}
+
+\begin{longtable}[c]{p{2.8cm}p{11.2cm}}
+\toprule
+\textbf{Option} & \textbf{Description} \\
+\midrule
+\texttt{EQ} & $N \times 1$ vector of symbolic equations, each set equal to zero. Same format as \texttt{chomoreno}: use \texttt{\_f} for forwarded and \texttt{\_l} for lagged variables. Required. \\[0.3em]
+\texttt{var} & $1 \times N$ symbolic vector of endogenous variables. Required. \\[0.3em]
+\texttt{shocks} & $1 \times M$ symbolic vector of structural shocks. Required. \\[0.3em]
+\texttt{std\_shocks} & $1 \times M$ vector of impulse sizes for IRFs. Required. \\[0.3em]
+\texttt{ss} & $1 \times N$ steady-state values. Required when \texttt{linear=0}; can be empty when \texttt{linear=1}. \\[0.3em]
+\texttt{linear} & \texttt{1} for linear models, \texttt{0} for nonlinear. Default is \texttt{0} (or \texttt{1} if \texttt{ss} not provided). \\[0.3em]
+\texttt{lenght\_irf} & Length of IRFs. Default is 40. \\[0.3em]
+\texttt{plotirf} & \texttt{1} to plot IRFs, \texttt{0} to suppress. Default is \texttt{1}. \\[0.3em]
+\texttt{instsol} & Set to \texttt{1} to force a solution under instability by treating the least explosive roots as stable. Default is \texttt{0}. \\[0.3em]
+\bottomrule
+\end{longtable}
+
+\subsection{Stored results}
+
+\textbf{lubikschorfheide} stores the following in structure \texttt{Q}:
+
+\medskip
+\noindent\textbf{Policy function matrices} (in QZ-transformed coordinates)
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{5cm}p{9cm}@{}}
+\texttt{Q.V1lubik} & $k \times k$ autoregressive matrix of the policy function in the stable block: $W_{1,t} = V_1 W_{1,t-1} + V_2^s \varepsilon_t + V_2^b \zeta_t$, where $k$ is the number of stable eigenvalues. \\[0.2em]
+\texttt{Q.V2lubik\_shocks} & $k \times M$ symbolic matrix mapping fundamental shocks to the stable block $W_1$. This is a function of the free matrix $M_1$; substituting $M_1 = 0$ gives the orthogonal solution. \\[0.2em]
+\texttt{Q.V2lubik\_belief} & $k \times (k-N)$ matrix mapping sunspot/belief shocks $\zeta_t$ to the stable block. Empty under determinacy. \\[0.2em]
+\end{tabular}
+
+\vspace{1em}
+\noindent\textbf{Decomposition and classification}
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{5cm}p{9cm}@{}}
+\texttt{Q.Z} & $2N \times 2N$ matrix from the ordered QZ decomposition. Transforms between original variables $X = [Y; \Lambda]$ and canonical variables $W = Z' X$. \\[0.2em]
+\texttt{Q.gen\_eigs} & $2N \times 1$ vector of generalized eigenvalues (sorted by absolute value). \\[0.2em]
+\texttt{Q.indetdegree} & Degree of indeterminacy ($k - N$ where $k$ = number of stable eigenvalues). Zero under determinacy. \\[0.2em]
+\texttt{Q.ETAstar} & $N \times 1$ symbolic vector of forecast errors $\eta$ as a function of $\varepsilon$, $M_1$, and $\zeta$ (only present under indeterminacy). \\[0.2em]
+\end{tabular}
+
+\vspace{1em}
+\noindent\textbf{Impulse responses}
+
+\vspace{0.5em}
+\begin{tabular}{@{}p{5cm}p{9cm}@{}}
+\texttt{Q.irf\_lubik} & Structure with one field per fundamental shock (named after each shock symbol) and one field per belief shock (\texttt{belief1}, \texttt{belief2}, \ldots). Each field is a $2N \times (\texttt{lenght\_irf}+1)$ matrix: rows 1:$N$ are original variables, rows $N$+1:$2N$ are conditional expectations. Fundamental-shock IRFs use the orthogonal solution ($M_1 = 0$). \\[0.2em]
+\end{tabular}
+
+\subsection{Remarks}
+
+\noindent\textbf{Determinacy classification.} The function counts the number of stable generalized eigenvalues $k$ (those with $|\lambda| \leq 1 + 10^{-6}$ and compares with $N$:
+\begin{itemize}[nosep]
+\item $k = N$: \textbf{Determinacy}. Unique stable solution.
+\item $k > N$: \textbf{Indeterminacy} of degree $k - N$. Multiple stable solutions exist.
+\item $k < N$: \textbf{Instability}. No stable solution exists (too many explosive roots).
+\end{itemize}
+
+\medskip
+\noindent\textbf{Orthogonal solution (OS).} When \texttt{plotirf=1}, the plotted IRFs use the orthogonal solution obtained by setting the free matrix $M_1 = 0$. Under this solution, belief shocks are orthogonal to fundamental shocks. Other solutions (e.g., the forward solution from \texttt{chomoreno}) can be recovered by substituting the appropriate $M_1$ into the symbolic \texttt{Q.V2lubik\_shocks} matrix. The function \texttt{find\_M1\_forward} automates this.
+
+\medskip
+\noindent\textbf{Sunspot/belief shocks.} Under indeterminacy of degree $d = k - N > 0$, the model admits $d$ independent sunspot shocks $\zeta_t$. These represent self-fulfilling belief fluctuations that are unrelated to fundamentals. The function computes IRFs to each belief shock using a default impulse size of 0.01.
+
+\medskip
+\noindent\textbf{Comparison with \texttt{chomoreno}.} Under determinacy, the two methods produce identical IRFs for the original $N$ variables. The correspondence can be verified by comparing \texttt{Q\_chomoreno.irf} with \texttt{Q\_lubik.irf\_lubik} (rows 1:$N$). Under indeterminacy, \texttt{chomoreno} selects the unique NBC solution, while \texttt{lubikschorfheide} defaults to the orthogonal solution ($M_1 = 0$), which generally differs.
+
+\medskip
+\noindent\textbf{Forced solution under instability.} When \texttt{instsol=1} and the model exhibits instability ($k < N$), the function forces a solution by treating the $N$ least explosive eigenvalues as ``stable.'' This can be useful for diagnostic purposes but the resulting solution is not a proper rational expectations equilibrium.
+
+\medskip
+\noindent\textbf{Unit roots and block-recursive structure.} As discussed in Cho and McCallum (2015), the eigenvalue method can disagree with the forward method in two important cases:
+\begin{enumerate}[nosep]
+\item \textit{Unit roots}: When a model has a unit root (eigenvalue exactly equal to 1), the eigenvalue method classifies it as stable (since $1 \leq 1 + 10^{-6}$). This can lead the eigenvalue method to report indeterminacy while the forward method finds determinacy. See Examples~6 and~7 in \texttt{examples\_chomoreno.m} for a detailed illustration using a small open economy model.
+\item \textit{Block-recursive structure}: When a non-interacting variable is added to the model (e.g., a budget constraint for bond holdings that does not feed back into the core equations), the eigenvalue method may change its classification (e.g., from indeterminacy to determinacy) while the forward method's solution for the core variables remains invariant. See Example~7 in \texttt{examples\_chomoreno.m} for an illustration.
+\end{enumerate}
+
+\subsection{Examples}
+
+\noindent\textbf{Example 1: Determinacy --- basic NK model}
+
+\medskip
+\noindent Solve the same NK model as in \texttt{chomoreno} Example~1 and verify that IRFs match:
+\begin{verbatim}
+Q1_ls = lubikschorfheide(EQ, var, shocks, std_shocks, [], 1, 40, 0);
+
+% Compare with chomoreno
+Q1_cm = chomoreno(EQ, var, shocks, std_shocks, [], 1, 40, 0);
+max_diff = max(abs(Q1_cm.irf.eps_r(1:4,2:end) ...
+             - Q1_ls.irf_lubik.eps_r(1:4,2:end)), [], 'all');
+fprintf('Max |IRF diff|: %.2e\n', max_diff);
+% Under determinacy, this should be close to machine precision.
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 2: Indeterminacy --- passive monetary policy}
+
+\medskip
+\noindent With $\phi_\pi = 0.8 < 1$, the model is indeterminate. The Lubik-Schorfheide solution includes belief shocks and a free matrix $M_1$:
+\begin{verbatim}
+Q4_ls = lubikschorfheide(EQ_indet, var, shocks, std_shocks, [], 1, 40, 1);
+
+fprintf('Indeterminacy degree: %d\n', Q4_ls.indetdegree);
+fprintf('Generalized eigenvalues: ');
+fprintf('%.4f  ', Q4_ls.gen_eigs);
+
+% Access belief shock IRFs
+belief_irf_y = Q4_ls.irf_lubik.belief1(1, 2:end);
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 3: Instability with forced solution}
+
+\medskip
+\noindent When the model has too many explosive roots, no stable REE exists. Setting \texttt{instsol=1} forces a solution by treating the least explosive roots as stable:
+\begin{verbatim}
+% Model with explosive debt dynamics (instability)
+Q5 = lubikschorfheide(EQ_unstable, var, shocks, std_shocks, [], 1, 40, 0);
+% Displays: 'Instability' and returns without solution
+
+% Force a solution
+Q5f = lubikschorfheide(EQ_unstable, var, shocks, std_shocks, ...
+                        [], 1, 40, 1, 1);
+% Now Q5f contains a (non-REE) solution for diagnostic purposes
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 4: Multiple solutions under indeterminacy}
+
+\medskip
+\noindent Under indeterminacy, different values of $M_1$ produce different rational expectations equilibria. The symbolic \texttt{V2lubik\_shocks} matrix can be evaluated at any $M_1$:
+\begin{verbatim}
+Q4 = lubikschorfheide(EQ_indet, var, shocks, std_shocks, [], 1, 40, 0);
+
+% Extract symbolic M1 variables
+M1_syms = symvar(Q4.V2lubik_shocks);
+
+% Orthogonal solution (M1 = 0, default)
+V2_orth = double(subs(Q4.V2lubik_shocks, M1_syms, zeros(size(M1_syms))));
+
+% Alternative solution (M1 = 0.3)
+M1_alt = 0.3 * ones(Q4.indetdegree, length(shocks));
+V2_alt = double(subs(Q4.V2lubik_shocks, M1_syms, M1_alt(:)'));
+
+% Simulate and compare IRFs for each solution
+\end{verbatim}
+
+\medskip
+\noindent For complete, executable examples, see \texttt{examples\_lubikschorfheide.m} and \texttt{examples\_chomoreno.m} in the package repository. The former contains standalone examples for \texttt{lubikschorfheide} (including instability, forced solutions, and exploring the $M_1$ parametrization); the latter contains comparison examples between the two methods.
+
+\subsection{Methods and formulas}
+
+\noindent\textbf{Step 1: Augmentation.} The system $A \, E_t[Y_{t+1}] + B \, Y_t + C \, Y_{t-1} + D \, \varepsilon_t = 0$ is augmented by introducing $\Lambda_t = E_{t-1}[Y_t]$ and $\eta_t = Y_t - \Lambda_{t-1}$ (forecast errors). The augmented system in the $2N$-dimensional variable $X_t = [Y_t; \Lambda_t]$ takes the Sims (2002) canonical form:
+\[
+\Gamma_0 \, X_t = \Gamma_1 \, X_{t-1} + \Psi \, \varepsilon_t + \Pi \, \eta_t
+\]
+
+\medskip
+\noindent\textbf{Step 2: QZ decomposition.} The generalized Schur decomposition of the pencil $(\Gamma_0, \Gamma_1)$ yields:
+\[
+Q' \Gamma_0 Z = \Lambda, \qquad Q' \Gamma_1 Z = \Omega
+\]
+where $\Lambda$ and $\Omega$ are upper triangular and $Q$, $Z$ are unitary. The eigenvalues are reordered so that stable roots ($|\omega_{ii}/\lambda_{ii}| \leq 1 + 10^{-6}$) come first. The system is partitioned into a stable block (first $k$ rows) and an unstable block (remaining $2N - k$ rows).
+
+\medskip
+\noindent\textbf{Step 3: Stability condition.} The stability condition requires the unstable block to be zero:
+\[
+Q_2 (\Psi \, \varepsilon_t + \Pi \, \eta_t) = 0
+\]
+This places restrictions on the forecast errors $\eta_t$.
+
+\medskip
+\noindent\textbf{Step 4: SVD of $Q_2 \Pi$.} The singular value decomposition $Q_2 \Pi = U S V'$ determines the rank $r$ of the restrictions. The columns of $V_2$ (corresponding to zero singular values) span the free directions. The degree of indeterminacy is $d = N - r$.
+
+\medskip
+\noindent\textbf{Step 5: Solution.} Following Lubik and Schorfheide (2003, Proposition 1), the forecast errors are:
+\[
+\eta_t = \left(-V_1 S_{11}^{-1} U_1' Q_2 \Psi + V_2 M_1\right) \varepsilon_t + V_2 \zeta_t
+\]
+where $M_1$ is a $d \times M$ free matrix indexing solutions and $\zeta_t$ is a $d \times 1$ sunspot shock. The policy function in the stable block is:
+\[
+W_{1,t} = \Lambda_{11}^{-1} \Omega_{11} \, W_{1,t-1} + \Lambda_{11}^{-1} Q_1 \left(\Psi - \Pi V_1 S_{11}^{-1} U_1' Q_2 \Psi + \Pi V_2 M_1\right) \varepsilon_t + \Lambda_{11}^{-1} Q_1 \Pi V_2 \, \zeta_t
+\]
+Original variables are recovered via $X_t = Z \, W_t$.
+
+\subsection{References}
+
+Lubik, T.A. and Schorfheide, F. 2003. ``Computing sunspot equilibria in linear rational expectations models.'' \textit{Journal of Economic Dynamics and Control}, 28(2), 273--285.
+
+\medskip
+\noindent Lubik, T.A. and Schorfheide, F. 2004. ``Testing for indeterminacy: An application to U.S.\ monetary policy.'' \textit{American Economic Review}, 94(1), 190--217.
+
+\medskip
+\noindent Sims, C.A. 2002. ``Solving linear rational expectations models.'' \textit{Computational Economics}, 20(1--2), 1--20.
+
+\medskip
+\noindent Cho, S. and McCallum, B.T. 2015. ``Refining linear rational expectations models and equilibria.'' \textit{Journal of Macroeconomics}, 46, 160--169.
+
+\subsection{Replication: Lubik and Schorfheide (2003) Figure 1}
+
+The script \texttt{lubik\_schorfheide\_nk.m} replicates Figure~1 from Lubik and Schorfheide (2003), which plots the impulse responses of the simple New Keynesian model under indeterminacy (passive monetary policy, $\psi = 0.95 < 1$). The model consists of two forward-looking equations (IS curve and Phillips curve) after substituting out the Taylor rule:
+\begin{align*}
+E_t[y_{t+1}] + \sigma \, E_t[\pi_{t+1}] &= y_t + \sigma \psi \, \pi_t + \sigma \, \varepsilon_t \\
+\beta \, E_t[\pi_{t+1}] &= \pi_t - \kappa \, y_t
+\end{align*}
+with parameters $\beta = 0.99$, $\kappa = 0.5$, $\sigma = 1$. The shock is a 25-basis-point interest rate cut ($\varepsilon = -0.25$).
+
+The script produces three sets of impulse responses for output, inflation, and the interest rate:
+\begin{enumerate}[nosep]
+\item \textbf{Continuity/forward solution} (solid lines): obtained via \texttt{chomoreno}, which selects the unique no-bubble solution. This corresponds to the specific $M_1$ found by \texttt{find\_M1\_forward}.
+\item \textbf{Orthogonal solution} (dashed lines): obtained from \texttt{lubikschorfheide} with $M_1 = 0$, where beliefs do not respond to fundamental shocks.
+\item \textbf{Sunspot shock} (dotted lines): the response to a belief shock (scaled by 0.5), which exists only under indeterminacy and represents self-fulfilling fluctuations.
+\end{enumerate}
+Since this is a purely forward-looking model, the Forward Convergence Condition (FCC) is always satisfied and the forward solution always exists. The interest rate is reconstructed as $R_t = \psi \, \pi_t + \varepsilon_t$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\section{find\_M1\_forward --- Find belief parameters matching the forward solution}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Syntax}
+
+\begin{verbatim}
+M1FS = find_M1_forward(Q_chomoreno, Q_lubik)
+\end{verbatim}
+
+\subsection{Description}
+
+\textbf{find\_M1\_forward} finds the values of the free belief matrix $M_1$ that make the Lubik-Schorfheide solution coincide with the Cho-Moreno forward (no-bubble) solution. Under indeterminacy, the Lubik-Schorfheide framework parametrizes a family of solutions by the matrix $M_1$. Setting $M_1 = 0$ gives the orthogonal solution; this function finds the specific $M_1$ that reproduces the forward solution.
+
+The computation uses OLS regression, exploiting the fact that the Lubik-Schorfheide shock-impact matrix is linear in $M_1$.
+
+\subsection{Options}
+
+\begin{longtable}[c]{p{3.2cm}p{10.8cm}}
+\toprule
+\textbf{Option} & \textbf{Description} \\
+\midrule
+\texttt{Q\_chomoreno} & Output structure from \texttt{chomoreno}. Must contain \texttt{Q.V2} (the $N \times M$ forward-solution shock-impact matrix). Required. \\[0.3em]
+\texttt{Q\_lubik} & Output structure from \texttt{lubikschorfheide} for an indeterminate model. Must contain \texttt{Q.V2lubik\_shocks} (symbolic), \texttt{Q.Z} (QZ transformation matrix), and \texttt{Q.indetdegree} $> 0$. Required. \\[0.3em]
+\bottomrule
+\end{longtable}
+
+\subsection{Stored results}
+
+\begin{tabular}{@{}p{4.5cm}p{10cm}@{}}
+\texttt{M1FS} & $(d \times M)$ matrix of belief parameters, where $d$ = degree of indeterminacy and $M$ = number of shocks. Each column corresponds to a shock. \\[0.2em]
+\end{tabular}
+
+\subsection{Remarks}
+
+\noindent\textbf{Interpretation.} The matrix $M_1$ determines how beliefs respond to fundamental shocks. When $M_1 = 0$ (orthogonal solution), beliefs do not respond to fundamentals. When $M_1 = M_1^{\text{FS}}$ (the value found by this function), beliefs respond precisely so as to implement the no-bubble solution of \texttt{chomoreno}. In general, any $M_1$ produces a valid stable rational expectations equilibrium.
+
+\medskip
+\noindent\textbf{Requirements.} The model must be indeterminate (\texttt{Q\_lubik.indetdegree} $> 0$). If the model is determinate, the function throws an error because $M_1$ does not exist (there is only one solution and both methods already agree).
+
+\medskip
+\noindent\textbf{Verification.} The function prints the maximum residual of the fit. If the residual exceeds $10^{-6}$, a warning is issued indicating that the forward solution may not be exactly reproducible within the Lubik-Schorfheide framework.
+
+\subsection{Examples}
+
+\noindent\textbf{Example 1: Passive monetary policy}
+
+\medskip
+\noindent Find $M_1$ for the indeterminate NK model with $\phi_\pi = 0.8$:
+\begin{verbatim}
+Q_cm = chomoreno(EQ_indet, var, shocks, std_shocks, [], 1, 40, 0);
+Q_ls = lubikschorfheide(EQ_indet, var, shocks, std_shocks, [], 1, 40, 0);
+
+M1FS = find_M1_forward(Q_cm, Q_ls);
+disp(M1FS);
+% M1FS is (indetdegree x nshocks) matrix
+
+% Verify: substitute M1FS into Lubik's symbolic V2 and compare IRFs
+V2_sym = Q_ls.V2lubik_shocks;
+M1_syms = symvar(V2_sym);
+V2_fwd = double(subs(V2_sym, M1_syms, M1FS(:)'));
+% V2_fwd should match Q_cm.V2 (after transforming back via Z)
+\end{verbatim}
+
+\vspace{1em}
+\noindent\textbf{Example 2: Small open economy with unit root}
+
+\medskip
+\noindent The unit-root SOE model is classified differently by the two methods. Find the belief parameter that reconciles them:
+\begin{verbatim}
+Q6_cm = chomoreno(EQ_ex6, [c6 R6], [eps6], [0.01], [], 1, 40, 0);
+Q6_ls = lubikschorfheide(EQ_ex6, [c6 R6], [eps6], [0.01], [], 1, 40, 0);
+
+M1_ex6 = find_M1_forward(Q6_cm, Q6_ls);
+fprintf('M1 = %.4f\n', M1_ex6);
+% This scalar tells us how beliefs must respond to the interest rate
+% shock to implement the forward (no-bubble) consumption path.
+\end{verbatim}
+
+\medskip
+\noindent For complete, executable examples, see \texttt{examples\_chomoreno.m} (Examples 4 and 6).
+
+\subsection{Methods and formulas}
+
+The Lubik-Schorfheide shock-impact matrix in the transformed stable block is:
+\[
+V_2^s(M_1) = \Lambda_{11}^{-1} Q_1 \left(\Psi - \Pi V_1 S_{11}^{-1} U_1' Q_2 \Psi + \Pi V_2 M_1\right)
+\]
+Transforming back to original variables via the $Z$ matrix:
+\[
+V_2^{\text{orig}}(M_1) = Z_{11} \, V_2^s(M_1)
+\]
+The first $N$ rows of $V_2^{\text{orig}}(M_1)$ correspond to the original variables $Y$. The forward solution requires:
+\[
+V_2^{\text{orig}}(M_1)\big|_{1:N,:} = V_2^{\text{chomoreno}}
+\]
+Since $V_2^s$ is linear in $M_1$, this is a linear system. Denoting the part independent of $M_1$ as $\alpha$ and the coefficient on $M_1$ as $\beta$:
+\[
+\alpha + \beta \, \text{vec}(M_1) = \text{vec}(V_2^{\text{chomoreno}})
+\]
+The solution is obtained by OLS:
+\[
+\widehat{M}_1 = (\beta' \beta)^{-1} \beta' \left(\text{vec}(V_2^{\text{chomoreno}}) - \alpha\right)
+\]
+
+\subsection{References}
+
+Lubik, T.A. and Schorfheide, F. 2003. ``Computing sunspot equilibria in linear rational expectations models.'' \textit{Journal of Economic Dynamics and Control}, 28(2), 273--285.
+
+\medskip
+\noindent Cho, S. and Moreno, A. 2011. ``The forward method as a solution refinement in rational expectations models.'' \textit{Journal of Economic Dynamics and Control}, 35(3), 257--272.
+
+
+\end{document}
