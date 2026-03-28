@@ -1,1 +1,1 @@
-# Linear-Rational-Expectiations-Model-with-Indeterminacy
+# Linear-Rational-Expectations-Model-with-Indeterminacy
